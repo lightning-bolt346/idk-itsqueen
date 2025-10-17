@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Digital Safe</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+    <style>
+        /* Custom styles to apply the Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Simple transition for modals */
+        .modal-transition {
+            transition: opacity 0.25s ease;
+        }
+        /* Custom scrollbar for a cleaner look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9; /* slate-100 */
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; /* slate-300 */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; /* slate-400 */
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div id="app-container" class="min-h-screen flex flex-col items-center justify-center p-4">
+
+        <div id="setup-view" class="w-full max-w-md p-8 bg-white rounded-lg shadow-md hidden">
+            <h1 class="text-2xl font-bold text-center mb-2">Welcome to The Digital Safe</h1>
+            <p class="text-center text-slate-600 mb-6">Create a Master Password to secure your data. All data is encrypted and stored locally in your browser.</p>
+            <div class="mb-4">
+                <label for="setup-password" class="block text-sm font-medium text-slate-700 mb-1">Master Password</label>
+                <input type="password" id="setup-password" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-6">
+                <label for="confirm-password" class="block text-sm font-medium text-slate-700 mb-1">Confirm Master Password</label>
+                <input type="password" id="confirm-password" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6 rounded-md" role="alert">
+                <p class="font-bold">Important Warning</p>
+                <p>If you forget this password, your data will be permanently lost. There is no way to recover it.</p>
+            </div>
+            <button id="create-master-password-btn" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Create Safe</button>
+            <p id="setup-error" class="text-red-500 text-sm mt-4 text-center"></p>
+        </div>
+
+        <div id="login-view" class="w-full max-w-sm p-8 bg-white rounded-lg shadow-md hidden">
+            <h1 class="text-2xl font-bold text-center mb-6">The Digital Safe</h1>
+            <div class="mb-4">
+                <label for="login-password" class="block text-sm font-medium text-slate-700 mb-1">Master Password</label>
+                <input type="password" id="login-password" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <button id="unlock-btn" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Unlock</button>
+            <p id="login-error" class="text-red-500 text-sm mt-4 text-center"></p>
+        </div>
+
+        <div id="main-app-view" class="w-full max-w-3xl hidden">
+            <header class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold text-slate-800">Dashboard</h1>
+                <div>
+                    <button id="show-stats-btn" class="bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-md hover:bg-slate-300 mr-2">Stats</button>
+                    <button id="add-new-safe-btn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700">+ Add New Safe</button>
+                </div>
+            </header>
+
+            <main id="dashboard-content">
+                </main>
+
+            <main id="stats-content" class="hidden bg-white p-6 rounded-lg shadow-md">
+                 <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Insights</h2>
+                    <button id="back-to-dashboard-btn" class="bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-md hover:bg-slate-300">← Back</button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-slate-600">Total Requests Made</p>
+                        <p id="stats-total-requests" class="text-2xl font-semibold">0</p>
+                    </div>
+                    <div>
+                        <p class="text-slate-600">Most Requested Account</p>
+                        <p id="stats-most-requested" class="text-2xl font-semibold">N/A</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+    </div>
+
+    <div id="add-safe-modal" class="modal-transition fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 class="text-xl font-bold mb-4">Add a New Safe</h2>
+            <form id="add-safe-form">
+                <div class="mb-4">
+                    <label for="account-name" class="block text-sm font-medium text-slate-700 mb-1">Account Name</label>
+                    <input type="text" id="account-name" placeholder="e.g., Instagram" required class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label for="username" class="block text-sm font-medium text-slate-700 mb-1">Username / Email</label>
+                    <input type="text" id="username" required class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label for="password" class="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                    <input type="password" id="password" required class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-6">
+                    <label for="wait-time" class="block text-sm font-medium text-slate-700 mb-1">Wait Time (days)</label>
+                    <select id="wait-time" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="1">1 Day</option>
+                        <option value="3">3 Days</option>
+                        <option value="7" selected>7 Days (Default)</option>
+                        <option value="14">14 Days</option>
+                        <option value="30">30 Days</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" id="cancel-add-safe-btn" class="bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-md hover:bg-slate-300">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="request-access-modal" class="modal-transition fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 class="text-xl font-bold mb-2">Request Access</h2>
+            <p class="text-slate-600 mb-4">To begin the countdown, please state why you need access. This forces a moment of reflection.</p>
+            <form id="request-access-form">
+                <input type="hidden" id="request-safe-id">
+                <textarea id="why-journal" rows="4" minlength="20" placeholder="Minimum 20 characters..." required class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"></textarea>
+                <div class="flex justify-end gap-3">
+                    <button type="button" id="cancel-request-access-btn" class="bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-md hover:bg-slate-300">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700">Start 7-Day Wait</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="view-password-modal" class="modal-transition fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center">
+            <h2 id="view-account-name" class="text-2xl font-bold mb-4"></h2>
+            <div class="text-left bg-slate-100 p-4 rounded-md mb-4">
+                <p class="text-sm font-medium text-slate-500 mb-1">Your reason from 7 days ago:</p>
+                <p id="view-why-journal" class="text-slate-700 italic"></p>
+            </div>
+            <div class="text-left mb-2">
+                <label class="block text-sm font-medium text-slate-500">Username/Email</label>
+                <p id="view-username" class="text-lg font-mono bg-slate-100 p-2 rounded"></p>
+            </div>
+            <div class="text-left mb-6">
+                <label class="block text-sm font-medium text-slate-500">Password</label>
+                <div class="flex items-center gap-2">
+                    <p id="view-password" class="text-lg font-mono bg-slate-100 p-2 rounded w-full"></p>
+                    <button id="copy-password-btn" class="bg-slate-200 p-2 rounded-md hover:bg-slate-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    </button>
+                </div>
+                <p id="copy-feedback" class="text-green-600 text-sm mt-1 h-4"></p>
+            </div>
+            <p class="text-lg font-semibold text-red-600">This window will close in:</p>
+            <p id="view-timer" class="text-4xl font-bold text-red-600 mb-2">3:00</p>
+        </div>
+    </div>
+
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // ===== STATE MANAGEMENT =====
+        let masterPassword = null;
+        let appState = {
+            safes: [],
+            stats: {
+                totalRequests: 0,
+                requestsByAccount: {}
+            }
+        };
+
+        const STORAGE_KEY = 'digitalSafeData';
+        let mainInterval;
+
+        // ===== UTILITY FUNCTIONS =====
+        const encryptData = (data, password) => {
+            return CryptoJS.AES.encrypt(JSON.stringify(data), password).toString();
+        };
+
+        const decryptData = (ciphertext, password) => {
+            try {
+                const bytes = CryptoJS.AES.decrypt(ciphertext, password);
+                const decryptedData = bytes.toString(CryptoJS.enc.Utf8);
+                if (!decryptedData) {
+                    throw new Error("Decryption failed: empty result");
+                }
+                return JSON.parse(decryptedData);
+            } catch (e) {
+                console.error("Decryption error:", e);
+                return null;
+            }
+        };
+
+        const saveState = () => {
+            if (!masterPassword) return;
+            const encryptedState = encryptData(appState, masterPassword);
+            localStorage.setItem(STORAGE_KEY, encryptedState);
+        };
+
+        const formatTime = (ms) => {
+            if (ms <= 0) return "0s";
+            const totalSeconds = Math.floor(ms / 1000);
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            
+            let parts = [];
+            if (days > 0) parts.push(`${days}d`);
+            if (hours > 0) parts.push(`${hours}h`);
+            if (minutes > 0) parts.push(`${minutes}m`);
+            if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+            
+            return parts.join(' ');
+        };
+
+        const formatViewTimer = (ms) => {
+            if (ms <= 0) return "0:00";
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        };
+        
+        // ===== UI TOGGLE FUNCTIONS =====
+        const showView = (viewId) => {
+            ['setup-view', 'login-view', 'main-app-view'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(viewId).classList.remove('hidden');
+        };
+
+        const showModal = (modalId) => {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.remove('opacity-0'), 10);
+        };
+
+        const hideModal = (modalId) => {
+            const modal = document.getElementById(modalId);
+            modal.classList.add('opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        };
+        
+        // ===== RENDER FUNCTION =====
+        const render = () => {
+            // Check safe statuses
+            const now = Date.now();
+            let stateChanged = false;
+            appState.safes.forEach(safe => {
+                if (safe.status === 'Waiting' && now >= safe.unlocksAt) {
+                    safe.status = 'Ready';
+                    stateChanged = true;
+                }
+                if (safe.status === 'Cooldown' && now >= safe.cooldownUntil) {
+                    safe.status = 'Locked';
+                    stateChanged = true;
+                }
+            });
+
+            if (stateChanged) saveState();
+
+            // Render dashboard
+            const dashboard = document.getElementById('dashboard-content');
+            dashboard.innerHTML = '';
+
+            if (appState.safes.length === 0) {
+                dashboard.innerHTML = `<div class="text-center p-10 bg-white rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold">Your safe is empty.</h2>
+                    <p class="text-slate-600 mt-2">Click "+ Add New Safe" to secure your first account.</p>
+                </div>`;
+            } else {
+                appState.safes.forEach(safe => {
+                    const safeEl = document.createElement('div');
+                    safeEl.className = 'bg-white p-4 rounded-lg shadow-md mb-4 flex items-center justify-between';
+                    
+                    let statusHTML = '';
+                    let buttonsHTML = '';
+                    const remaining = safe.unlocksAt - now;
+                    const cooldownRemaining = safe.cooldownUntil - now;
+                    
+                    switch(safe.status) {
+                        case 'Locked':
+                            statusHTML = `<span class="text-sm font-semibold text-slate-500">Locked</span>`;
+                            buttonsHTML = `<button data-id="${safe.id}" class="request-btn bg-blue-100 text-blue-700 font-semibold py-2 px-4 rounded-md hover:bg-blue-200">Request Access</button>`;
+                            break;
+                        case 'Waiting':
+                            statusHTML = `<div class="text-sm">
+                                <span class="font-semibold text-orange-600">Waiting...</span>
+                                <span class="block text-slate-500">${formatTime(remaining)} remaining</span>
+                            </div>`;
+                            buttonsHTML = `<button data-id="${safe.id}" class="cancel-request-btn bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-md hover:bg-slate-300">Cancel</button>`;
+                            break;
+                        case 'Ready':
+                            statusHTML = `<span class="text-sm font-semibold text-green-600">Ready to Open</span>`;
+                            buttonsHTML = `<button data-id="${safe.id}" class="view-btn bg-green-500 text-white font-semibold py-2 px-4 rounded-md hover:bg-green-600">View Password</button>`;
+                            break;
+                        case 'Cooldown':
+                            statusHTML = `<div class="text-sm">
+                                <span class="font-semibold text-gray-500">On Cooldown</span>
+                                <span class="block text-slate-500">${formatTime(cooldownRemaining)} remaining</span>
+                            </div>`;
+                            buttonsHTML = `<button disabled class="bg-slate-100 text-slate-400 font-semibold py-2 px-4 rounded-md cursor-not-allowed">Request Access</button>`;
+                            break;
+                    }
+
+                    safeEl.innerHTML = `
+                        <div>
+                            <h3 class="text-lg font-bold">${safe.accountName}</h3>
+                            ${statusHTML}
+                        </div>
+                        <div class="flex items-center gap-2">
+                            ${buttonsHTML}
+                            <button data-id="${safe.id}" class="delete-btn text-slate-400 hover:text-red-500 p-2 rounded-md ${safe.status === 'Waiting' ? 'cursor-not-allowed opacity-50' : ''}" ${safe.status === 'Waiting' ? 'disabled' : ''}>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </div>
+                    `;
+                    dashboard.appendChild(safeEl);
+                });
+            }
+            
+            // Render Stats
+            document.getElementById('stats-total-requests').textContent = appState.stats.totalRequests;
+            let mostRequested = 'N/A';
+            let maxRequests = 0;
+            for (const account in appState.stats.requestsByAccount) {
+                if (appState.stats.requestsByAccount[account] > maxRequests) {
+                    maxRequests = appState.stats.requestsByAccount[account];
+                    mostRequested = account;
+                }
+            }
+            document.getElementById('stats-most-requested').textContent = mostRequested;
+        };
+
+        // ===== EVENT LISTENERS =====
+
+        // --- Setup View ---
+        document.getElementById('create-master-password-btn').addEventListener('click', () => {
+            const pass = document.getElementById('setup-password').value;
+            const confirmPass = document.getElementById('confirm-password').value;
+            const errorEl = document.getElementById('setup-error');
+
+            if (pass.length < 8) {
+                errorEl.textContent = 'Password must be at least 8 characters long.';
+                return;
+            }
+            if (pass !== confirmPass) {
+                errorEl.textContent = 'Passwords do not match.';
+                return;
+            }
+
+            masterPassword = pass;
+            saveState();
+            showView('main-app-view');
+            startApp();
+        });
+        
+        // --- Login View ---
+        document.getElementById('unlock-btn').addEventListener('click', () => {
+            const pass = document.getElementById('login-password').value;
+            const encryptedData = localStorage.getItem(STORAGE_KEY);
+            const decryptedState = decryptData(encryptedData, pass);
+            
+            if (decryptedState) {
+                masterPassword = pass;
+                appState = decryptedState;
+                showView('main-app-view');
+                startApp();
+            } else {
+                document.getElementById('login-error').textContent = 'Incorrect password. Please try again.';
+            }
+        });
+        // Allow pressing Enter to log in
+        document.getElementById('login-password').addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('unlock-btn').click();
+            }
+        });
+
+
+        // --- Main App: Dashboard / Stats Toggle ---
+        document.getElementById('show-stats-btn').addEventListener('click', () => {
+            document.getElementById('dashboard-content').classList.add('hidden');
+            document.getElementById('stats-content').classList.remove('hidden');
+        });
+        document.getElementById('back-to-dashboard-btn').addEventListener('click', () => {
+            document.getElementById('stats-content').classList.add('hidden');
+            document.getElementById('dashboard-content').classList.remove('hidden');
+        });
+
+        // --- Add New Safe ---
+        document.getElementById('add-new-safe-btn').addEventListener('click', () => {
+            document.getElementById('add-safe-form').reset();
+            showModal('add-safe-modal');
+        });
+
+        document.getElementById('cancel-add-safe-btn').addEventListener('click', () => {
+            hideModal('add-safe-modal');
+        });
+
+        document.getElementById('add-safe-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newSafe = {
+                id: Date.now().toString(),
+                accountName: document.getElementById('account-name').value,
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                waitPeriod: parseInt(document.getElementById('wait-time').value) * 24 * 60 * 60 * 1000,
+                status: 'Locked',
+                unlocksAt: null,
+                reason: '',
+                viewExpiresAt: null,
+                cooldownUntil: null
+            };
+            appState.safes.push(newSafe);
+            saveState();
+            render();
+            hideModal('add-safe-modal');
+        });
+
+        // --- Dashboard Event Delegation ---
+        document.getElementById('dashboard-content').addEventListener('click', (e) => {
+            const target = e.target.closest('button');
+            if (!target) return;
+
+            const safeId = target.dataset.id;
+            const safe = appState.safes.find(s => s.id === safeId);
+            if (!safe) return;
+
+            if (target.classList.contains('request-btn')) {
+                document.getElementById('request-safe-id').value = safeId;
+                const modalBtn = document.querySelector('#request-access-modal button[type="submit"]');
+                modalBtn.textContent = `Start ${formatTime(safe.waitPeriod)} Wait`;
+                showModal('request-access-modal');
+            } else if (target.classList.contains('cancel-request-btn')) {
+                safe.status = 'Locked';
+                safe.unlocksAt = null;
+                safe.reason = '';
+                saveState();
+                render();
+            } else if (target.classList.contains('view-btn')) {
+                document.getElementById('view-account-name').textContent = safe.accountName;
+                document.getElementById('view-why-journal').textContent = safe.reason;
+                document.getElementById('view-username').textContent = safe.username;
+                document.getElementById('view-password').textContent = safe.password;
+
+                safe.viewExpiresAt = Date.now() + 180 * 1000; // 3 minutes
+                saveState();
+                showModal('view-password-modal');
+                // The main interval will handle the countdown and closing
+            } else if (target.classList.contains('delete-btn')) {
+                if (confirm(`Are you sure you want to permanently delete the safe for "${safe.accountName}"?`)) {
+                    appState.safes = appState.safes.filter(s => s.id !== safeId);
+                    saveState();
+                    render();
+                }
+            }
+        });
+
+        // --- Request Access Modal ---
+        document.getElementById('cancel-request-access-btn').addEventListener('click', () => {
+            hideModal('request-access-modal');
+        });
+
+        document.getElementById('request-access-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const safeId = document.getElementById('request-safe-id').value;
+            const reason = document.getElementById('why-journal').value;
+            const safe = appState.safes.find(s => s.id === safeId);
+
+            if (safe) {
+                safe.status = 'Waiting';
+                safe.reason = reason;
+                safe.unlocksAt = Date.now() + safe.waitPeriod;
+                
+                // Update stats
+                appState.stats.totalRequests++;
+                appState.stats.requestsByAccount[safe.accountName] = (appState.stats.requestsByAccount[safe.accountName] || 0) + 1;
+                
+                saveState();
+                render();
+                hideModal('request-access-modal');
+                document.getElementById('request-access-form').reset();
+            }
+        });
+
+        // --- View Password Modal ---
+        document.getElementById('copy-password-btn').addEventListener('click', () => {
+            const password = document.getElementById('view-password').textContent;
+            navigator.clipboard.writeText(password).then(() => {
+                const feedback = document.getElementById('copy-feedback');
+                feedback.textContent = 'Copied!';
+                setTimeout(() => {
+                    feedback.textContent = '';
+                }, 2000);
+            });
+        });
+
+        // ===== APP INITIALIZATION =====
+        const startApp = () => {
+            if (mainInterval) clearInterval(mainInterval);
+            
+            mainInterval = setInterval(() => {
+                render();
+                
+                // Handle active view password timer
+                const viewingSafe = appState.safes.find(s => s.viewExpiresAt !== null);
+                if (viewingSafe) {
+                    const remainingViewTime = viewingSafe.viewExpiresAt - Date.now();
+                    if (remainingViewTime > 0) {
+                        document.getElementById('view-timer').textContent = formatViewTimer(remainingViewTime);
+                    } else {
+                        viewingSafe.status = 'Cooldown';
+                        viewingSafe.cooldownUntil = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+                        viewingSafe.viewExpiresAt = null;
+                        viewingSafe.unlocksAt = null;
+                        viewingSafe.reason = '';
+                        saveState();
+                        hideModal('view-password-modal');
+                        render();
+                    }
+                }
+
+            }, 1000);
+        };
+
+        // --- On Load ---
+        const init = () => {
+            if (localStorage.getItem(STORAGE_KEY)) {
+                showView('login-view');
+            } else {
+                showView('setup-view');
+            }
+        };
+
+        init();
+    });
+    </script>
+
+</body>
+</html>
